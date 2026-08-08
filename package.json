@@ -1,0 +1,72 @@
+{
+  "name": "vscode-plugin-large-image-viewer",
+  "displayName": "Large Image Viewer",
+  "description": "A tiled, zoomable custom image editor for very large PNG, JPEG, TIFF, and WebP files.",
+  "version": "0.1.3",
+  "private": true,
+  "publisher": "xdralex",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/xdralex/vscode-plugin-large-image-viewer.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xdralex/vscode-plugin-large-image-viewer/issues"
+  },
+  "homepage": "https://github.com/xdralex/vscode-plugin-large-image-viewer#readme",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "image",
+    "deep zoom",
+    "large image",
+    "tiled image"
+  ],
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onCustomEditor:largeImageViewer.editor"
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "largeImageViewer.editor",
+        "displayName": "Large Image Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.{png,PNG,jpg,JPG,jpeg,JPEG,tif,TIF,tiff,TIFF,webp,WEBP}"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "largeImageViewer.clearCache",
+        "title": "Large Image Viewer: Clear Tile Cache",
+        "category": "Large Image Viewer"
+      }
+    ]
+  },
+  "scripts": {
+    "compile": "node esbuild.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm run compile",
+    "smoke": "npm run compile && node dist/smoke-test.cjs",
+    "package": "npm run check && vsce package --target darwin-arm64"
+  },
+  "dependencies": {
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/vscode": "^1.90.0",
+    "@vscode/vsce": "^3.6.2",
+    "esbuild": "^0.25.12",
+    "openseadragon": "^6.0.2",
+    "typescript": "^5.9.3"
+  }
+}
