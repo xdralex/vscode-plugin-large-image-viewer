@@ -8,9 +8,13 @@ PNG, JPEG, TIFF, and WebP files open as a smooth, zoomable tiled image.
 
 - Opens images with hundreds of millions of pixels without decoding the complete
   bitmap inside the webview.
-- Smooth mouse-wheel and trackpad zoom, drag-to-pan, double-click zoom, and a
-  navigator minimap.
-- `Fit`, `100%`, zoom in/out, and exact percentage controls.
+- Smooth mouse-wheel, trackpad, and pinch zoom, drag-to-pan, and an optional
+  navigator minimap that is off by default.
+- `Fit` and exact 1%, 2%, 5%, 10%, 25%, 50%, 75%, 100%, 200%, 400%, 800%,
+  1600%, and 3200% zoom controls, with fixed-level `+` and `−` buttons.
+- Lossless cached tiles with pixel-perfect nearest-neighbor rendering at 100%
+  and above.
+- Pixel-snapped ruler and rectangle measurement tools shown while dragging.
 - Sensible initial scale: small images open at 100%; oversized images fit the
   available editor area.
 - Generated tiles are cached and reused until the source file changes.
@@ -40,12 +44,15 @@ the default editor for supported image formats.
 | Action | Control |
 | --- | --- |
 | Zoom | Mouse wheel or trackpad pinch |
-| Pan | Drag the image |
-| Zoom in | Double-click, `+`, or the `+` button |
+| Pan | Select **Pan** and drag the image, or press `Escape` to leave a measurement tool |
+| Zoom in | `+` or the `+` button |
 | Zoom out | `-` or the `-` button |
 | Fit to editor | `0` or **Fit** |
 | Actual size | `1` or **100%** |
-| Exact zoom | Enter a percentage in the zoom field |
+| Exact zoom | Select a percentage from the zoom menu |
+| Toggle minimap | Select the picture-in-picture button |
+| Distance | Select **Ruler**, then drag between two pixel centres |
+| Width and height | Select **Rect**, then drag across the area |
 
 Supported extensions: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, and `.webp`
 (including uppercase variants). Local files are currently supported.
@@ -53,9 +60,12 @@ Supported extensions: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, and `.webp`
 ## How it works
 
 The extension uses Sharp/libvips to build a Deep Zoom (`.dzi`) pyramid made of
-1024 px tiles. OpenSeadragon then requests only the tiles needed for the current
-viewport and zoom level, avoiding the webview memory failure caused by loading a
-huge source bitmap directly.
+1024 px lossless WebP tiles. OpenSeadragon then requests only the tiles needed
+for the current viewport and zoom level, avoiding the webview memory failure
+caused by loading a huge source bitmap directly. At 100% and above, interpolation
+is disabled. The fixed 100% through 3200% levels therefore render each source
+pixel as an integer-sized pixel block. Fractional wheel zoom at or above 100%
+also remains nearest-neighbor, without interpolated colours.
 
 Tile pyramids live in VS Code's extension storage. Each cache entry is keyed by
 the source path, file size, and modification time, so an unchanged image opens

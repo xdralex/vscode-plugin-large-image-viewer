@@ -5,6 +5,8 @@ import path from "node:path";
 import sharp from "sharp";
 
 const TILE_SIZE = 1024;
+const CACHE_VERSION = 2 as const;
+const CACHE_PIPELINE = "lossless-webp-v2";
 const SHARP_READ_OPTIONS = {
   limitInputPixels: false,
   autoOrient: true,
@@ -23,7 +25,7 @@ export interface TilePyramid {
 }
 
 interface Manifest {
-  version: 1;
+  version: typeof CACHE_VERSION;
   sourcePath: string;
   sourceSize: number;
   sourceMtimeMs: number;
@@ -60,7 +62,7 @@ async function readManifest(directory: string): Promise<Manifest | undefined> {
   try {
     const raw = await fs.readFile(path.join(directory, "manifest.json"), "utf8");
     const manifest = JSON.parse(raw) as Manifest;
-    if (manifest.version !== 1) return undefined;
+    if (manifest.version !== CACHE_VERSION) return undefined;
     await fs.access(path.join(directory, "image.dzi"));
     await fs.access(path.join(directory, "image_files"));
     return manifest;
@@ -99,6 +101,8 @@ export async function ensureTilePyramid(sourcePath: string, cacheRoot: string): 
   }
 
   const cacheKey = createHash("sha256")
+    .update(CACHE_PIPELINE)
+    .update("\0")
     .update(realSourcePath)
     .update("\0")
     .update(String(sourceStat.size))
@@ -121,6 +125,7 @@ export async function ensureTilePyramid(sourcePath: string, cacheRoot: string): 
 
   try {
     await sharp(realSourcePath, SHARP_READ_OPTIONS)
+      .webp({ lossless: true, effort: 1 })
       .tile({ size: TILE_SIZE, overlap: 0, layout: "dz" })
       .toFile(path.join(stagingDirectory, "image"));
 
@@ -128,7 +133,7 @@ export async function ensureTilePyramid(sourcePath: string, cacheRoot: string): 
       await fs.readFile(path.join(stagingDirectory, "image.dzi"), "utf8"),
     );
     const manifest: Manifest = {
-      version: 1,
+      version: CACHE_VERSION,
       sourcePath: realSourcePath,
       sourceSize: sourceStat.size,
       sourceMtimeMs: sourceStat.mtimeMs,
