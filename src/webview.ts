@@ -52,6 +52,11 @@ interface Measurement {
   end: ImagePoint;
 }
 
+interface MiddlePanState {
+  pointerId: number;
+  lastPosition: OpenSeadragon.Point;
+}
+
 let viewer: OpenSeadragon.Viewer | undefined;
 let imageSmoothingEnabled: boolean | undefined;
 let navigatorVisible = false;
@@ -59,6 +64,7 @@ let currentImage: ImageDescription | undefined;
 let measurementTool: MeasurementTool = "pan";
 let draftMeasurement: Measurement | undefined;
 let measurementPointerId: number | undefined;
+let middlePanState: MiddlePanState | undefined;
 
 function requiredElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -269,10 +275,12 @@ function renderMeasurement(measurement: Measurement): DocumentFragment | undefin
   const deltaY = Math.abs(measurement.end.y - measurement.start.y);
 
   if (measurement.tool === "ruler") {
-    const line = createSvgElement("line");
-    line.classList.add("measurement-line");
-    setAttributes(line, { x1: start.x, y1: start.y, x2: end.x, y2: end.y });
-    fragment.append(line);
+    for (const tone of ["white", "black"] as const) {
+      const line = createSvgElement("line");
+      line.classList.add("measurement-stroke", `measurement-stroke-${tone}`);
+      setAttributes(line, { x1: start.x, y1: start.y, x2: end.x, y2: end.y });
+      fragment.append(line);
+    }
 
     for (const point of [start, end]) {
       const marker = createSvgElement("circle");
@@ -292,10 +300,12 @@ function renderMeasurement(measurement: Measurement): DocumentFragment | undefin
     const top = Math.min(start.y, end.y);
     const width = Math.abs(end.x - start.x);
     const height = Math.abs(end.y - start.y);
-    const rectangle = createSvgElement("rect");
-    rectangle.classList.add("measurement-rectangle");
-    setAttributes(rectangle, { x: left, y: top, width, height });
-    fragment.append(rectangle);
+    for (const tone of ["white", "black"] as const) {
+      const rectangle = createSvgElement("rect");
+      rectangle.classList.add("measurement-stroke", `measurement-stroke-${tone}`);
+      setAttributes(rectangle, { x: left, y: top, width, height });
+      fragment.append(rectangle);
+    }
 
     fragment.append(renderCursorLabel(`(${deltaX + 1}, ${deltaY + 1}) px`, end, start));
   }
@@ -363,7 +373,18 @@ function finishMeasurement(event: PointerEvent): void {
   event.stopPropagation();
 }
 
+function finishMiddlePan(pointerId?: number): void {
+  if (!middlePanState || (pointerId !== undefined && pointerId !== middlePanState.pointerId)) return;
+  if (stageElement.hasPointerCapture(middlePanState.pointerId)) {
+    stageElement.releasePointerCapture(middlePanState.pointerId);
+  }
+  middlePanState = undefined;
+  stageElement.classList.remove("middle-pan-active");
+  viewer?.viewport.applyConstraints(false);
+}
+
 function openImage(image: ImageDescription): void {
+  finishMiddlePan();
   viewer?.destroy();
   viewerElement.replaceChildren();
   imageSmoothingEnabled = undefined;
@@ -454,6 +475,20 @@ rulerToolButton.addEventListener("click", () => setMeasurementTool("ruler"));
 rectangleToolButton.addEventListener("click", () => setMeasurementTool("rectangle"));
 
 stageElement.addEventListener("pointerdown", (event) => {
+  if (event.button !== 1 || !event.isPrimary) return;
+  if (event.target instanceof Element && event.target.closest(".navigator")) return;
+
+  middlePanState = {
+    pointerId: event.pointerId,
+    lastPosition: new OpenSeadragon.Point(event.clientX, event.clientY),
+  };
+  stageElement.classList.add("middle-pan-active");
+  stageElement.setPointerCapture(event.pointerId);
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+stageElement.addEventListener("pointerdown", (event) => {
   if (measurementTool === "pan" || event.button !== 0 || !event.isPrimary) return;
   event.preventDefault();
   event.stopPropagation();
@@ -468,6 +503,24 @@ stageElement.addEventListener("pointerdown", (event) => {
 }, true);
 
 stageElement.addEventListener("pointermove", (event) => {
+  if (event.pointerId !== middlePanState?.pointerId) return;
+  if ((event.buttons & 4) === 0) {
+    finishMiddlePan(event.pointerId);
+    return;
+  }
+
+  const currentPosition = new OpenSeadragon.Point(event.clientX, event.clientY);
+  const delta = currentPosition.minus(middlePanState.lastPosition);
+  middlePanState.lastPosition = currentPosition;
+  if (viewer && (delta.x !== 0 || delta.y !== 0)) {
+    viewer.viewport.panBy(viewer.viewport.deltaPointsFromPixels(delta.negate()), true);
+    viewer.viewport.applyConstraints(true);
+  }
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
+
+stageElement.addEventListener("pointermove", (event) => {
   if (event.pointerId !== measurementPointerId || !draftMeasurement) return;
   const point = imagePointFromPointer(event, true);
   if (point) draftMeasurement.end = point;
@@ -476,13 +529,28 @@ stageElement.addEventListener("pointermove", (event) => {
   event.stopPropagation();
 }, true);
 
+stageElement.addEventListener("pointerup", (event) => {
+  if (event.pointerId !== middlePanState?.pointerId || event.button !== 1) return;
+  finishMiddlePan(event.pointerId);
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
 stageElement.addEventListener("pointerup", finishMeasurement, true);
+stageElement.addEventListener("pointercancel", (event) => {
+  if (event.pointerId !== middlePanState?.pointerId) return;
+  finishMiddlePan(event.pointerId);
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
 stageElement.addEventListener("pointercancel", (event) => {
   if (event.pointerId !== measurementPointerId) return;
   cancelDraftMeasurement();
   event.preventDefault();
   event.stopPropagation();
 }, true);
+stageElement.addEventListener("auxclick", (event) => {
+  if (event.button === 1) event.preventDefault();
+});
 
 window.addEventListener("keydown", (event) => {
   if (document.activeElement === zoomSelect) return;

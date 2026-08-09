@@ -123,8 +123,11 @@ class LargeImageEditorProvider implements vscode.CustomReadonlyEditorProvider<La
     #viewer { position: absolute; inset: 0; }
     #measurement-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
     #stage-wrap.measurement-active, #stage-wrap.measurement-active * { cursor: crosshair !important; }
-    .measurement-line, .measurement-rectangle { fill: none; stroke: var(--vscode-focusBorder); stroke-width: 1.5; stroke-dasharray: 6 4; vector-effect: non-scaling-stroke; }
-    .measurement-point { fill: var(--vscode-focusBorder); stroke: var(--vscode-editor-background); stroke-width: 1; vector-effect: non-scaling-stroke; }
+    #stage-wrap.middle-pan-active, #stage-wrap.middle-pan-active * { cursor: grabbing !important; }
+    .measurement-stroke { fill: none; stroke-width: 1.5; stroke-dasharray: 6 6; vector-effect: non-scaling-stroke; }
+    .measurement-stroke-white { stroke: #fff; }
+    .measurement-stroke-black { stroke: #000; stroke-dashoffset: 6; }
+    .measurement-point { fill: #000; stroke: #fff; stroke-width: 1; vector-effect: non-scaling-stroke; }
     .measurement-label-background { fill: rgba(72, 72, 72, .92); }
     .measurement-label { fill: #fff; font: 14px var(--vscode-font-family); pointer-events: none; }
     #message { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 24px; color: var(--vscode-descriptionForeground); pointer-events: none; }

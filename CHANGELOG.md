@@ -12,8 +12,10 @@ All notable changes to Large Image Viewer are documented here.
 - Added nearest-neighbor rendering at 100% and above and removed tile crossfades.
 - Added integer pixel ruler and rectangle measurement tools with transient
   overlays shown only while dragging.
+- Rendered measurement strokes as alternating black-and-white dashes.
 - Replaced text toolbar actions with compact 16px Lucide icons.
 - Added a minimap toggle and made the minimap hidden by default.
+- Added temporary middle-mouse panning while any tool is selected.
 
 ## 0.1.3
 

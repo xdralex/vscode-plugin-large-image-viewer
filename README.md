@@ -45,6 +45,7 @@ the default editor for supported image formats.
 | --- | --- |
 | Zoom | Mouse wheel or trackpad pinch |
 | Pan | Select **Pan** and drag the image, or press `Escape` to leave a measurement tool |
+| Temporary pan | Drag with the middle mouse button while any tool is selected |
 | Zoom in | `+` or the `+` button |
 | Zoom out | `-` or the `-` button |
 | Fit to editor | `0` or **Fit** |
