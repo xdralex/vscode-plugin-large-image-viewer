@@ -15,6 +15,7 @@ PNG, JPEG, TIFF, and WebP files open as a smooth, zoomable tiled image.
 - Lossless cached tiles with pixel-perfect nearest-neighbor rendering at 100%
   and above.
 - Pixel-snapped ruler and rectangle measurement tools shown while dragging.
+- Copies the complete source image to the macOS clipboard from the toolbar.
 - Sensible initial scale: small images open at 100%; oversized images fit the
   available editor area.
 - Generated tiles are cached and reused until the source file changes.
@@ -54,6 +55,7 @@ the default editor for supported image formats.
 | Toggle minimap | Select the picture-in-picture button |
 | Distance | Select **Ruler**, then drag between two pixel centres |
 | Width and height | Select **Rect**, then drag across the area |
+| Copy full image | Select the copy button next to the image dimensions |
 
 Supported extensions: `.png`, `.jpg`, `.jpeg`, `.tif`, `.tiff`, and `.webp`
 (including uppercase variants). Local files are currently supported.

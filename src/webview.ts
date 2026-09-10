@@ -16,12 +16,14 @@ interface ImageDescription {
 type HostMessage =
   | { type: "loading"; message: string }
   | { type: "error"; message: string }
+  | { type: "copy-result"; ok: boolean; message?: string }
   | { type: "open"; image: ImageDescription };
 
 const vscode = acquireVsCodeApi();
 const viewerElement = requiredElement("viewer");
 const messageElement = requiredElement("message");
 const dimensionsElement = requiredElement("dimensions");
+const copyImageButton = requiredElement("copy-image") as HTMLButtonElement;
 const zoomSelect = requiredElement("zoom") as HTMLSelectElement;
 const zoomCustomOption = requiredElement("zoom-custom") as HTMLOptionElement;
 const navigatorToggleButton = requiredElement("navigator-toggle") as HTMLButtonElement;
@@ -65,6 +67,31 @@ let measurementTool: MeasurementTool = "pan";
 let draftMeasurement: Measurement | undefined;
 let measurementPointerId: number | undefined;
 let middlePanState: MiddlePanState | undefined;
+let copyButtonResetTimer: number | undefined;
+
+function setCopyButtonStatus(status: "ready" | "copying" | "copied" | "error", message?: string): void {
+  if (copyButtonResetTimer !== undefined) window.clearTimeout(copyButtonResetTimer);
+  copyButtonResetTimer = undefined;
+
+  if (status === "copying") {
+    copyImageButton.disabled = true;
+    copyImageButton.title = "Copying full image…";
+    copyImageButton.setAttribute("aria-label", "Copying full image");
+    return;
+  }
+
+  copyImageButton.disabled = !currentImage;
+  copyImageButton.title = status === "copied"
+    ? "Copied full image"
+    : status === "error"
+      ? `Could not copy full image: ${message ?? "unknown error"}`
+      : "Copy full image";
+  copyImageButton.setAttribute("aria-label", copyImageButton.title);
+
+  if (status !== "ready") {
+    copyButtonResetTimer = window.setTimeout(() => setCopyButtonStatus("ready"), 2500);
+  }
+}
 
 function requiredElement(id: string): HTMLElement {
   const element = document.getElementById(id);
@@ -389,6 +416,7 @@ function openImage(image: ImageDescription): void {
   viewerElement.replaceChildren();
   imageSmoothingEnabled = undefined;
   currentImage = image;
+  setCopyButtonStatus("ready");
   setMeasurementTool("pan");
 
   const tileSource = {
@@ -473,6 +501,11 @@ navigatorToggleButton.addEventListener("click", () => setNavigatorVisible(!navig
 panToolButton.addEventListener("click", () => setMeasurementTool("pan"));
 rulerToolButton.addEventListener("click", () => setMeasurementTool("ruler"));
 rectangleToolButton.addEventListener("click", () => setMeasurementTool("rectangle"));
+copyImageButton.addEventListener("click", () => {
+  if (!currentImage) return;
+  setCopyButtonStatus("copying");
+  vscode.postMessage({ type: "copy-image" });
+});
 
 stageElement.addEventListener("pointerdown", (event) => {
   if (event.button !== 1 || !event.isPrimary) return;
@@ -573,6 +606,8 @@ window.addEventListener("message", (event: MessageEvent<HostMessage>) => {
     messageElement.textContent = message.message;
   } else if (message.type === "open") {
     openImage(message.image);
+  } else if (message.type === "copy-result") {
+    setCopyButtonStatus(message.ok ? "copied" : "error", message.message);
   }
 });
 

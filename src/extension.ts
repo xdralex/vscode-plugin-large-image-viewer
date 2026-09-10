@@ -1,12 +1,68 @@
 import { randomBytes } from "node:crypto";
+import { execFile } from "node:child_process";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { promisify } from "node:util";
 
 import * as vscode from "vscode";
+import sharp from "sharp";
 
 import { ensureTilePyramid, type TilePyramid } from "./tile-pyramid";
 
 const VIEW_TYPE = "largeImageViewer.editor";
+const execFileAsync = promisify(execFile);
+
+const COPY_IMAGE_APPLESCRIPT = `
+on run argv
+  set imageFile to POSIX file (item 1 of argv)
+  set imageFormat to item 2 of argv
+
+  if imageFormat is "png" then
+    set the clipboard to (read imageFile as «class PNGf»)
+  else if imageFormat is "jpeg" then
+    set the clipboard to (read imageFile as «class JPEG»)
+  else if imageFormat is "tiff" then
+    set the clipboard to (read imageFile as «class TIFF»)
+  else
+    error "Unsupported clipboard image format."
+  end if
+end run
+`;
+
+async function copyImageToClipboard(sourcePath: string, temporaryDirectory: string): Promise<void> {
+  if (process.platform !== "darwin") {
+    throw new Error("Copying the full image is currently supported on macOS only.");
+  }
+
+  const extension = path.extname(sourcePath).toLowerCase();
+  const clipboardFormat = extension === ".png"
+    ? "png"
+    : extension === ".jpg" || extension === ".jpeg"
+      ? "jpeg"
+      : extension === ".tif" || extension === ".tiff"
+        ? "tiff"
+        : "png";
+  let clipboardPath = sourcePath;
+  let convertedPath: string | undefined;
+
+  try {
+    if (extension === ".webp") {
+      await fs.mkdir(temporaryDirectory, { recursive: true });
+      convertedPath = path.join(temporaryDirectory, `clipboard-${randomBytes(12).toString("hex")}.png`);
+      await sharp(sourcePath).png().toFile(convertedPath);
+      clipboardPath = convertedPath;
+    }
+
+    await execFileAsync("/usr/bin/osascript", [
+      "-e",
+      COPY_IMAGE_APPLESCRIPT,
+      clipboardPath,
+      clipboardFormat,
+    ]);
+  } finally {
+    if (convertedPath) await fs.rm(convertedPath, { force: true });
+  }
+}
 
 class LargeImageDocument implements vscode.CustomDocument {
   constructor(readonly uri: vscode.Uri) {}
@@ -70,6 +126,19 @@ class LargeImageEditorProvider implements vscode.CustomReadonlyEditorProvider<La
 
     const messageSubscription = webview.onDidReceiveMessage((message: { type?: string }) => {
       if (message.type === "ready") void load();
+      if (message.type === "copy-image") {
+        void copyImageToClipboard(document.uri.fsPath, this.context.globalStorageUri.fsPath).then(
+          async () => {
+            await webview.postMessage({ type: "copy-result", ok: true });
+            void vscode.window.showInformationMessage(`Copied ${path.basename(document.uri.fsPath)} to the clipboard.`);
+          },
+          async (error: unknown) => {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            await webview.postMessage({ type: "copy-result", ok: false, message: errorMessage });
+            void vscode.window.showErrorMessage(`Could not copy ${path.basename(document.uri.fsPath)}: ${errorMessage}`);
+          },
+        );
+      }
     });
     webviewPanel.onDidDispose(() => messageSubscription.dispose());
   }
@@ -119,6 +188,7 @@ class LargeImageEditorProvider implements vscode.CustomReadonlyEditorProvider<La
     .toolbar-separator { width: 1px; height: 20px; margin: 0 4px; background: var(--vscode-panel-border); }
     #spacer { flex: 1; }
     #dimensions { color: var(--vscode-descriptionForeground); white-space: nowrap; }
+    #copy-image { margin-left: 4px; }
     #stage-wrap { position: relative; min-height: 0; background-color: var(--vscode-editor-background); background-image: linear-gradient(45deg, color-mix(in srgb, var(--vscode-foreground) 5%, transparent) 25%, transparent 25%), linear-gradient(-45deg, color-mix(in srgb, var(--vscode-foreground) 5%, transparent) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, color-mix(in srgb, var(--vscode-foreground) 5%, transparent) 75%), linear-gradient(-45deg, transparent 75%, color-mix(in srgb, var(--vscode-foreground) 5%, transparent) 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
     #viewer { position: absolute; inset: 0; }
     #measurement-overlay { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
@@ -230,6 +300,12 @@ class LargeImageEditorProvider implements vscode.CustomReadonlyEditorProvider<La
       </button>
       <div id="spacer"></div>
       <span id="dimensions"></span>
+      <button id="copy-image" class="icon-button" type="button" title="Copy full image" aria-label="Copy full image" disabled>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+          <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+        </svg>
+      </button>
     </div>
     <div id="stage-wrap">
       <div id="viewer"></div>
